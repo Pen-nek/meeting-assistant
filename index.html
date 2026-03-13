@@ -55,9 +55,9 @@
         <div class="config-card">
             <label>발화자 수 (최대)</label>
             <div class="num-stepper">
-                <button class="stepper-btn" id="stepperDown">−</button>
+                <button class="stepper-btn" id="stepperDown" type="button">−</button>
                 <span class="stepper-val" id="stepperVal">4</span>
-                <button class="stepper-btn" id="stepperUp">+</button>
+                <button class="stepper-btn" id="stepperUp" type="button">+</button>
                 <input type="hidden" id="speakerCount" value="4" />
             </div>
         </div>
@@ -90,11 +90,11 @@
         <div class="progress-card">
             <div class="progress-title"><div class="spinner"></div>분석 중...</div>
             <div class="progress-steps">
-                <div class="prog-step" id="prog1"><div class="prog-dot"></div>음성 파일 업로드</div>
-                <div class="prog-step" id="prog2"><div class="prog-dot"></div>화자 분리 및 음성 인식 (Gladia)</div>
-                <div class="prog-step" id="prog3"><div class="prog-dot"></div>회의록 생성 (Groq AI)</div>
-                <div class="prog-step" id="prog4"><div class="prog-dot"></div>TO DO 추출</div>
-                <div class="prog-step" id="prog5"><div class="prog-dot"></div>문서 파일 생성</div>
+                <div class="prog-step" id="prog1"><div class="prog-dot"></div><span>음성 파일 업로드</span><span class="prog-elapsed" id="elapsed1"></span></div>
+                <div class="prog-step" id="prog2"><div class="prog-dot"></div><span>화자 분리 및 음성 인식 (Gladia)</span><span class="prog-elapsed" id="elapsed2"></span></div>
+                <div class="prog-step" id="prog3"><div class="prog-dot"></div><span>회의록 생성 (Groq AI)</span><span class="prog-elapsed" id="elapsed3"></span></div>
+                <div class="prog-step" id="prog4"><div class="prog-dot"></div><span>TO DO 추출</span><span class="prog-elapsed" id="elapsed4"></span></div>
+                <div class="prog-step" id="prog5"><div class="prog-dot"></div><span>문서 파일 생성</span><span class="prog-elapsed" id="elapsed5"></span></div>
             </div>
         </div>
     </div>

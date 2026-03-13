@@ -490,7 +490,7 @@ header {
 .speaker-todo-group         { margin-bottom: 24px; }
 .speaker-todo-group:last-child { margin-bottom: 0; }
 .speaker-todo-header {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
     margin-bottom: 12px; padding-bottom: 10px;
     border-bottom: 1px solid var(--border);
 }
@@ -1199,14 +1199,39 @@ header {
 .todo-add-input:focus { border-color: var(--accent); }
 .todo-add-spk,
 .todo-add-priority {
-    background: var(--surface3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 8px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif; font-size: 12px;
-    cursor: pointer; outline: none;
+    /* custom-sel 스타일 상속 — 아래 .custom-sel 규칙이 실제 스타일 담당 */
+    height: 30px;
 }
+
+/* ── 그룹 삭제 버튼 ─────────────────────────────── */
+.group-del-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid rgba(247,92,106,.3);
+    border-radius: 8px;
+    color: rgba(247,92,106,.7);
+    font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600;
+    padding: 3px 10px; cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.speaker-todo-header:hover .group-del-btn { opacity: 1; }
+.group-del-btn:hover {
+    background: rgba(247,92,106,.15);
+    color: #f75c6a;
+}
+
+/* ── 경과 시간 표시 ─────────────────────────────── */
+.prog-elapsed {
+    margin-left: auto;
+    font-size: 11px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.prog-step.active .prog-elapsed { opacity: 1; color: var(--accent); }
+.prog-step.done   .prog-elapsed { opacity: 1; color: var(--success); }
 .todo-add-confirm {
     height: 30px; padding: 0 14px;
     background: var(--accent); border: none;
@@ -1296,11 +1321,13 @@ header {
     border-radius: 10px; padding: 10px 36px 10px 14px;
     color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
     cursor: pointer; user-select: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
     display: flex; align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
-.custom-select:hover, .custom-select:focus { border-color: var(--accent); outline: none; }
-.custom-select.open { border-color: var(--accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.custom-select:hover  { border-color: rgba(124,106,247,.5); }
+.custom-select:focus  { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,106,247,.15); outline: none; }
+.custom-select.open   { border-color: var(--accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: 0 0 0 3px rgba(124,106,247,.15); }
 
 .cs-arrow {
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
@@ -1324,27 +1351,29 @@ header {
 .cs-option:hover   { background: rgba(124,106,247,.15); }
 .cs-option.active  { color: var(--accent); font-weight: 600; background: rgba(124,106,247,.08); }
 
-/* ── 인라인 커스텀 셀렉트 (TO DO meta / 추가 폼) ── */
+/* ── 인라인 커스텀 셀렉트 (TO DO 추가 폼 / 발화자·우선순위 공용) ── */
 .custom-sel {
-    appearance: none;
-    background: var(--surface3);
+    appearance: none; -webkit-appearance: none;
+    background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 4px 24px 4px 8px;
+    padding: 5px 26px 5px 10px;
     color: var(--text);
-    font-family: 'DM Sans', sans-serif; font-size: 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
     cursor: pointer; outline: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237c6af7'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 8px center;
-    transition: border-color 0.15s;
+    background-repeat: no-repeat; background-position: right 9px center;
+    transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
-.custom-sel:hover, .custom-sel:focus { border-color: var(--accent); }
+.custom-sel:hover  { border-color: rgba(124,106,247,.5); background-color: var(--surface3); }
+.custom-sel:focus  { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,106,247,.15); }
 .custom-sel option { background: var(--surface2); color: var(--text); }
 
 /* 우선순위 셀렉트 색상 */
-.custom-sel.priority-high { color: #f75c6a; border-color: rgba(247,92,106,.4); background-color: rgba(247,92,106,.1); }
-.custom-sel.priority-mid  { color: #f7c56a; border-color: rgba(247,197,106,.4); background-color: rgba(247,197,106,.1); }
-.custom-sel.priority-low  { color: #5cf0b0; border-color: rgba(92,240,176,.4);  background-color: rgba(92,240,176,.1); }
+.custom-sel.priority-high { color: #f75c6a; border-color: rgba(247,92,106,.4); background-color: rgba(247,92,106,.08); }
+.custom-sel.priority-mid  { color: #f7c56a; border-color: rgba(247,197,106,.4); background-color: rgba(247,197,106,.08); }
+.custom-sel.priority-low  { color: #5cf0b0; border-color: rgba(92,240,176,.4);  background-color: rgba(92,240,176,.08); }
 
 /* ══════════════════════════════════════════════
    드래그 정렬

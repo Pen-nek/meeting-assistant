@@ -121,13 +121,19 @@ async def transcribe(audio: bytes, n_speakers: int, lang: str) -> list:
     result_url = tr.json()["result_url"]
 
     # 3) 폴링
-    for _ in range(120):
+    for i in range(120):
         await asyncio.sleep(3)
         poll = await http.get(result_url, headers=headers)
         data = poll.json()
+        print(f"[Gladia poll #{i}] status={data.get('status')}")
         if data["status"] == "done":
-            return data["result"]["transcription"]["utterances"]
-        if data["status"] == "error":
+            utterances = data["result"]["transcription"]["utterances"]
+            # speaker 필드 없는 경우 보정
+            for i, u in enumerate(utterances):
+                if "speaker" not in u:
+                    u["speaker"] = 0
+            return utterances
+        if data["status"] in ("error", "failed"):
             raise HTTPException(500, f"음성 인식 실패: {data.get('error_code')}")
     raise HTTPException(500, "음성 인식 타임아웃")
 
@@ -141,15 +147,27 @@ SYSTEM_KO = (
     "JSON keys stay in English; all values must be Korean."
 )
 
+GROQ_MODEL    = "llama-3.1-8b-instant"
+GROQ_FALLBACK = "llama-3.3-70b-versatile"
+MAX_CHARS = 8000
+
+def _truncate(text: str) -> str:
+    if len(text) <= MAX_CHARS:
+        return text
+    head = int(MAX_CHARS * 0.7)
+    tail = MAX_CHARS - head
+    return text[:head] + "\n\n...(중략)...\n\n" + text[-tail:]
+
 async def groq(prompt: str, max_tokens: int = 2000, retries: int = 4) -> str:
-    """Groq API 호출. 429 Rate Limit 시 Retry-After 헤더 or 지수 백오프로 재시도."""
+    """Groq API 호출. 429 시 Retry-After 대기, 2회 이상 실패 시 경량 모델 폴백."""
     delay = 5.0
     for attempt in range(retries):
+        model = GROQ_MODEL if attempt < 2 else GROQ_FALLBACK
         res = await http.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
             json={
-                "model": "llama-3.3-70b-versatile",
+                "model": model,
                 "max_tokens": max_tokens,
                 "messages": [
                     {"role": "system", "content": SYSTEM_KO},
@@ -159,6 +177,9 @@ async def groq(prompt: str, max_tokens: int = 2000, retries: int = 4) -> str:
         )
         if res.status_code == 429:
             wait = float(res.headers.get("retry-after", delay))
+            print(f"[Groq 429] model={model} retry_after={wait}s")
+            if wait > 60:
+                raise HTTPException(429, f"Groq API 사용량 초과 ({int(wait)}초 대기 필요). 잠시 후 다시 시도해주세요.")
             await asyncio.sleep(wait)
             delay = min(delay * 2, 60)
             continue
@@ -169,29 +190,29 @@ async def groq(prompt: str, max_tokens: int = 2000, retries: int = 4) -> str:
 
 
 def _strip_cjk(text: str) -> str:
-    """한자(CJK) 범위 문자를 공백으로 치환해 한글 출력 보장."""
     import re
-    # CJK Unified Ideographs (U+4E00–U+9FFF) + Extensions 제거
-    return re.sub(r'[一-鿿㐀-䶿豈-﫿]+', '', text)
+    return re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
 
 
-# ── 공통 분석: 회의록 → TO DO → 주제 (순차 실행, Rate Limit 방지) ──
+# ── 공통 분석: 회의록 → TO DO → 주제 ──
 async def analyze(full_text: str, speaker_list: str, indexed_text: str) -> tuple:
-    minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{full_text}\n\n{_MINUTES}")
-    await asyncio.sleep(1)   # Groq free tier 분당 요청 수 제한 완충
+    t  = _truncate(full_text)
+    it = _truncate(indexed_text)
+    print(f"[analyze] {len(full_text)}자 → truncated {len(t)}자")
+
+    minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{t}\n\n{_MINUTES}")
+    await asyncio.sleep(1)
     todo_raw    = await groq(
-        f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{full_text}\n\n"
+        f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{t}\n\n"
         f"발화자 번호: {speaker_list}\n\n{_TODO}",
         max_tokens=1000,
     )
     await asyncio.sleep(1)
     topics_raw  = await groq(
-        f"다음 회의 대화입니다 (맨 앞 숫자가 utterance 인덱스).\n\n{indexed_text}\n\n{_TOPICS}",
+        f"다음 회의 대화입니다 (맨 앞 숫자가 utterance 인덱스).\n\n{it}\n\n{_TOPICS}",
         max_tokens=800,
     )
     return minutes_raw, _parse_todos(todo_raw), _parse_json(topics_raw, [])
-
-
 def _parse_json(raw: str, fallback):
     try:
         return json.loads(raw.replace("```json","").replace("```","").strip())

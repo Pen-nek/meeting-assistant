@@ -79,10 +79,29 @@ function setProgStep(n) {
     for (let i = 1; i <= 5; i++) {
         const el = $('prog'+i);
         if (!el) continue;
+        const wasActive = el.classList.contains('active');
         el.classList.toggle('done', i < n);
         el.classList.toggle('active', i === n);
         if (i > n) el.classList.remove('done','active');
+        if (i === n && !wasActive) _startElapsed(i);
+        if (i < n) _stopElapsed(i);
     }
+}
+const _stepTimers = {}, _stepStart = {};
+function _startElapsed(n) {
+    if (_stepTimers[n]) return;
+    _stepStart[n] = Date.now();
+    const el = $('elapsed'+n); if (el) el.textContent = '0s';
+    _stepTimers[n] = setInterval(() => {
+        const el = $('elapsed'+n);
+        if (el) el.textContent = Math.floor((Date.now()-_stepStart[n])/1000)+'s';
+    }, 1000);
+}
+function _stopElapsed(n) {
+    if (!_stepTimers[n]) return;
+    clearInterval(_stepTimers[n]); delete _stepTimers[n];
+    const el = $('elapsed'+n);
+    if (el && _stepStart[n]) el.textContent = Math.floor((Date.now()-_stepStart[n])/1000)+'s';
 }
 
 // ── 탭 ───────────────────────────────────────────
@@ -754,7 +773,7 @@ $('addMinutesBtn').addEventListener('click', () => {
 // ── TO DO 렌더 ───────────────────────────────────
 function renderTodos(todos) {
     const c=$('todoContent'); c.innerHTML='';
-    state.result.todos=todos; // 항상 최신으로 동기
+    state.result.todos=todos;
     const speakers=[...new Set($$('.utterance-text').map(el=>+el.dataset.speaker).filter(n=>!isNaN(n)))].sort((a,b)=>a-b);
     const groups=[
         ...speakers.map(spk=>({ label:spkName(spk), cls:`speaker-label speaker-${(spk-1)%6} speaker-todo-label`, spk, todos:todos.filter(t=>t.speaker!==null&&t.speaker+1===spk) })),
@@ -765,7 +784,19 @@ function renderTodos(todos) {
 
     groups.forEach(g=>{
         const div=document.createElement('div'); div.className='speaker-todo-group';
-        div.innerHTML=`<div class="speaker-todo-header"><span class="${g.cls||'speaker-todo-label'}" ${g.style?`style="${g.style}"`:''}>${g.label}</span></div>`;
+        div.innerHTML=`<div class="speaker-todo-header">
+            <span class="${g.cls||'speaker-todo-label'}" ${g.style?`style="${g.style}"`:''}>${g.label}</span>
+            <button class="group-del-btn" title="이 그룹 전체 삭제" type="button">✕ 그룹 삭제</button>
+        </div>`;
+        div.querySelector('.group-del-btn').addEventListener('click', () => {
+            if (!confirm(`"${g.label}" 그룹의 할 일을 모두 삭제할까요?`)) return;
+            if (g.spk !== null) {
+                state.result.todos = state.result.todos.filter(t => !(t.speaker !== null && t.speaker + 1 === g.spk));
+            } else {
+                state.result.todos = state.result.todos.filter(t => t.speaker !== null);
+            }
+            renderTodos(state.result.todos);
+        });
         const ul=document.createElement('ul'); ul.className='todo-list';
         g.todos.forEach(t=>ul.appendChild(makeTodo(t, todos)));
         div.appendChild(ul); c.appendChild(div);
@@ -838,28 +869,33 @@ function makeTodo(t, todosArr) {
 
 // TO DO 항목 추가
 $('addTodoBtn').addEventListener('click', () => {
-    // 발화자 선택 드롭다운 포함한 인라인 폼
     const c=$('todoContent');
     const existing=c.querySelector('.todo-add-form');
     if (existing) { existing.remove(); return; }
 
     const speakers=[...new Set($$('.utterance-text').map(el=>+el.dataset.speaker).filter(n=>!isNaN(n)))].sort((a,b)=>a-b);
+    const spkOptions = `<option value="">미정</option>` +
+        speakers.map(spk => `<option value="${spk}">${spkName(spk)}</option>`).join('');
+
     const form=document.createElement('div'); form.className='todo-add-form';
     form.innerHTML=`
     <input class="todo-add-input" placeholder="새 할 일 입력..." />
-    <select class="todo-add-priority">
+    <select class="todo-add-spk custom-sel">${spkOptions}</select>
+    <select class="todo-add-priority custom-sel">
       <option value="보통">보통</option>
       <option value="높음">높음</option>
       <option value="낮음">낮음</option>
     </select>
-    <button class="todo-add-confirm">추가</button>
-    <button class="todo-add-cancel">취소</button>`;
+    <button class="todo-add-confirm" type="button">추가</button>
+    <button class="todo-add-cancel"  type="button">취소</button>`;
     c.prepend(form);
     form.querySelector('.todo-add-input').focus();
     form.querySelector('.todo-add-confirm').addEventListener('click',()=>{
         const task=form.querySelector('.todo-add-input').value.trim(); if(!task) return;
         const pri=form.querySelector('.todo-add-priority').value;
-        const newTodo={task, owner:null, speaker:null, priority:pri};
+        const spkVal=form.querySelector('.todo-add-spk').value;
+        const spk=spkVal===''?null:+spkVal;
+        const newTodo={task, owner:spk!==null?spkName(spk):null, speaker:spk!==null?spk-1:null, priority:pri};
         state.result.todos.unshift(newTodo);
         form.remove();
         renderTodos(state.result.todos);
@@ -1029,6 +1065,7 @@ $('submitBtn').addEventListener('click', async()=>{
     if(!state.file) return;
     hideErr(); setStep(2);
     $('submitBtn').style.display='none';
+    $('previewBtn').style.display='none';
     $('progressSection').classList.add('visible');
     try {
         setProgStep(1);
@@ -1045,13 +1082,16 @@ $('submitBtn').addEventListener('click', async()=>{
         renderMinutes(state.result.minutes); renderTodos(state.result.todos);
         setProgStep(5);
         await new Promise(r=>setTimeout(r,400));
+        Object.keys(_stepTimers).forEach(k=>_stopElapsed(+k));
         $('progressSection').classList.remove('visible');
         $('resultsSection').classList.add('visible');
         $('audioPlayerResult').classList.add('visible');
         setStep(3); switchTab('transcript');
     } catch(err) {
+        Object.keys(_stepTimers).forEach(k=>_stopElapsed(+k));
         $('progressSection').classList.remove('visible');
         $('submitBtn').style.display='block';
+        $('previewBtn').style.display='';
         setStep(1); showErr('오류: '+err.message); return;
     }
     setupPlayer();
