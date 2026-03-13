@@ -790,13 +790,6 @@ function makeTodo(t, todosArr) {
       <div class="todo-task" contenteditable="true">${t.task}</div>
     </div>
     <div class="todo-chips">
-      <div class="td-dropdown owner-dd" tabindex="0">
-        <span class="td-chip owner-chip">👤 <span class="td-chip-val">${curOwnerLabel}</span></span>
-        <div class="td-menu owner-menu">
-          <div class="td-opt ${!t.speaker && t.speaker!==0?'active':''}" data-val="">미정</div>
-          ${speakers.map(s=>`<div class="td-opt ${t.speaker!==null&&t.speaker+1===s?'active':''}" data-val="${s}">${spkName(s)}</div>`).join('')}
-        </div>
-      </div>
       <div class="td-dropdown prio-dd ${pc}" tabindex="0">
         <span class="td-chip prio-chip"><span class="td-chip-val">${curPrio}</span></span>
         <div class="td-menu prio-menu">
@@ -810,20 +803,6 @@ function makeTodo(t, todosArr) {
 
     li.querySelector('.todo-task').addEventListener('blur', e => { t.task = e.target.innerText.trim(); });
 
-    // 담당자 드롭다운
-    const ownerDd = li.querySelector('.owner-dd');
-    ownerDd.querySelectorAll('.td-opt').forEach(opt => {
-        opt.addEventListener('click', e => {
-            e.stopPropagation();
-            const v = opt.dataset.val;
-            t.speaker = v ? +v - 1 : null; t.owner = null;
-            ownerDd.querySelector('.td-chip-val').textContent = v ? spkName(+v) : '미정';
-            ownerDd.querySelectorAll('.td-opt').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            ownerDd.classList.remove('open');
-        });
-    });
-
     // 우선순위 드롭다운
     const prioDd = li.querySelector('.prio-dd');
     prioDd.querySelectorAll('.td-opt').forEach(opt => {
@@ -834,24 +813,18 @@ function makeTodo(t, todosArr) {
             prioDd.querySelector('.td-chip-val').textContent = v;
             prioDd.querySelectorAll('.td-opt').forEach(o => o.classList.remove('active'));
             opt.classList.add('active');
-            // 우선순위 색 클래스 교체
             prioDd.classList.remove('priority-high','priority-mid','priority-low');
             const nc = {'높음':'priority-high','낮음':'priority-low'}[v]??'priority-mid';
             prioDd.classList.add(nc);
             prioDd.classList.remove('open');
         });
     });
-
-    // 드롭다운 토글
-    [ownerDd, prioDd].forEach(dd => {
-        dd.addEventListener('click', e => {
-            const wasOpen = dd.classList.contains('open');
-            // 다른 모든 드롭다운 닫기
-            $$('.td-dropdown.open').forEach(d => d.classList.remove('open'));
-            if (!wasOpen) dd.classList.add('open');
-        });
-        dd.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') dd.click(); });
+    prioDd.addEventListener('click', e => {
+        const wasOpen = prioDd.classList.contains('open');
+        $$('.td-dropdown.open').forEach(d => d.classList.remove('open'));
+        if (!wasOpen) prioDd.classList.add('open');
     });
+    prioDd.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') prioDd.click(); });
 
     li.querySelector('.todo-del-btn').addEventListener('click', () => {
         if (!confirm('이 항목을 삭제할까요?')) return;
@@ -874,10 +847,6 @@ $('addTodoBtn').addEventListener('click', () => {
     const form=document.createElement('div'); form.className='todo-add-form';
     form.innerHTML=`
     <input class="todo-add-input" placeholder="새 할 일 입력..." />
-    <select class="todo-add-spk">
-      <option value="">담당자 미정</option>
-      ${speakers.map(s=>`<option value="${s}">${spkName(s)}</option>`).join('')}
-    </select>
     <select class="todo-add-priority">
       <option value="보통">보통</option>
       <option value="높음">높음</option>
@@ -889,9 +858,8 @@ $('addTodoBtn').addEventListener('click', () => {
     form.querySelector('.todo-add-input').focus();
     form.querySelector('.todo-add-confirm').addEventListener('click',()=>{
         const task=form.querySelector('.todo-add-input').value.trim(); if(!task) return;
-        const spkVal=form.querySelector('.todo-add-spk').value;
         const pri=form.querySelector('.todo-add-priority').value;
-        const newTodo={task, owner:null, speaker:spkVal?+spkVal-1:null, priority:pri};
+        const newTodo={task, owner:null, speaker:null, priority:pri};
         state.result.todos.unshift(newTodo);
         form.remove();
         renderTodos(state.result.todos);
@@ -966,6 +934,96 @@ $('dlTodosDocx').addEventListener('click',()=>state.result&&dlDocx({todos:state.
     });
     document.addEventListener('click', e => { if (!wrap.contains(e.target)) toggle(false); });
 })();
+
+// ── 결과 예시 보기 ────────────────────────────────
+const DEMO_DATA = {
+    utterances: [
+        { speaker: 0, text: "안녕하세요, 오늘 회의 시작할게요. 이번 분기 API 명세서 작성 일정 논의하려고 모였습니다.", start: 0.5, end: 6.2 },
+        { speaker: 1, text: "네, 저는 인증 관련 엔드포인트 먼저 작성하면 좋겠다고 생각해요. 로그인, 회원가입, 토큰 갱신 이 세 가지요.", start: 7.0, end: 14.5 },
+        { speaker: 2, text: "동의합니다. 그런데 에러 코드 체계도 먼저 정해야 할 것 같아요. 팀마다 다르게 쓰고 있어서 혼란스럽거든요.", start: 15.2, end: 22.8 },
+        { speaker: 0, text: "좋은 지적이에요. 에러 코드는 HTTP 표준을 기반으로 하되, 우리만의 세부 코드를 추가하는 방향으로 합시다.", start: 23.5, end: 31.0 },
+        { speaker: 1, text: "그럼 제가 에러 코드 초안 작성해서 내일까지 공유할게요. Confluence에 올리겠습니다.", start: 31.8, end: 38.4 },
+        { speaker: 2, text: "저는 결제 API 명세 담당할게요. 다음 주 화요일까지 초안 완성 목표로 하겠습니다.", start: 39.1, end: 46.0 },
+        { speaker: 0, text: "좋아요. 그리고 전체 API 문서 형식은 OpenAPI 3.0 스펙으로 통일하기로 결정합시다.", start: 46.8, end: 53.2 },
+        { speaker: 1, text: "Swagger UI도 연동하면 좋을 것 같은데요. 개발팀에서 요청이 많았거든요.", start: 54.0, end: 60.1 },
+        { speaker: 2, text: "저도 찬성이에요. 주소는 /api-docs로 통일하면 어떨까요?", start: 60.8, end: 66.5 },
+        { speaker: 0, text: "네, 그렇게 하죠. 마지막으로 리뷰 프로세스 얘기해볼게요. PR 올리면 최소 2명 이상 승인 받는 걸로 하면 어떨까요?", start: 67.2, end: 76.0 },
+        { speaker: 1, text: "좋습니다. 그리고 문서 변경 시 반드시 CHANGELOG도 업데이트하는 규칙 추가하면 좋겠어요.", start: 76.8, end: 84.3 },
+        { speaker: 0, text: "동의해요. 오늘 논의한 내용 정리해서 슬랙에 공유할게요. 수고하셨습니다.", start: 85.0, end: 91.5 },
+    ],
+    minutes: `# 회의 요약
+API 명세서 작성 일정 및 담당 업무를 분배하고, 문서 형식과 리뷰 프로세스를 확정했습니다. 에러 코드 체계 통일 및 Swagger UI 연동도 결정되었습니다.
+
+## 주요 논의사항
+- 인증 관련 엔드포인트(로그인, 회원가입, 토큰 갱신) 우선 작성 필요
+- 팀 간 에러 코드 불일치 문제 → HTTP 표준 기반 + 자체 세부 코드 추가 방식으로 통일
+- API 문서 형식을 OpenAPI 3.0 스펙으로 통일
+- Swagger UI 연동(/api-docs) 개발팀 요청 수용
+- PR 리뷰 프로세스: 최소 2명 이상 승인 필수
+
+## 결정된 사항
+- API 문서 형식: OpenAPI 3.0 스펙 통일
+- Swagger UI 주소: /api-docs
+- 에러 코드 체계: HTTP 표준 + 자체 세부 코드
+- PR 리뷰: 최소 2인 승인 / 문서 변경 시 CHANGELOG 업데이트 의무화`,
+    todos: [
+        { task: "에러 코드 초안 작성 후 Confluence 공유", owner: "발화자 2", speaker: 1, priority: "높음" },
+        { task: "결제 API 명세 초안 작성", owner: "발화자 3", speaker: 2, priority: "높음" },
+        { task: "Swagger UI 연동 설정", owner: null, speaker: null, priority: "보통" },
+        { task: "오늘 회의 내용 슬랙 공유", owner: "발화자 1", speaker: 0, priority: "낮음" },
+    ],
+    topics: [
+        { title: "회의 시작", start_idx: 0, end_idx: 0 },
+        { title: "에러 코드 정의", start_idx: 1, end_idx: 3 },
+        { title: "업무 분담", start_idx: 4, end_idx: 5 },
+        { title: "문서 형식 결정", start_idx: 6, end_idx: 8 },
+        { title: "리뷰 프로세스", start_idx: 9, end_idx: 11 },
+    ],
+};
+
+let previewOpen = false;
+$('previewBtn').addEventListener('click', () => {
+    previewOpen = !previewOpen;
+    const btn = $('previewBtn');
+
+    if (!previewOpen) {
+        // 닫기
+        $('resultsSection').classList.remove('visible');
+        $('audioPlayerResult').classList.remove('visible');
+        $('fabGroup').classList.remove('visible');
+        $('fixedNav').classList.remove('visible');
+        btn.textContent = '👀 결과 예시 보기';
+        state.result = null;
+        return;
+    }
+
+    // 열기
+    btn.textContent = '✕ 예시 닫기';
+
+    state.result = {
+        utterances: DEMO_DATA.utterances,
+        full_text: DEMO_DATA.utterances.map(u => `[발화자 ${u.speaker+1}] ${u.text}`).join('\n'),
+        minutes: DEMO_DATA.minutes,
+        todos: JSON.parse(JSON.stringify(DEMO_DATA.todos)),
+        topics: DEMO_DATA.topics,
+    };
+    state.speakerNames = {};
+
+    renderTranscript(state.result.utterances);
+    buildSpeakerPanel(state.result.utterances);
+    if (state.result.topics?.length) buildNav(state.result.topics);
+    renderMinutes(state.result.minutes);
+    renderTodos(state.result.todos);
+
+    $('progressSection').classList.remove('visible');
+    $('resultsSection').classList.add('visible');
+    $('audioPlayerResult').classList.add('visible');
+    setStep(3);
+    switchTab('transcript');
+    updateFab();
+
+    $('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 $('submitBtn').addEventListener('click', async()=>{
     if(!state.file) return;

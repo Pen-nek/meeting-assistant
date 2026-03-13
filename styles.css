@@ -436,9 +436,9 @@ header {
 }
 
 .utterance-meta {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 5px;
-    flex-shrink: 0; width: 50px;
+    display: flex; flex-direction: row;
+    align-items: center; gap: 6px;
+    flex-shrink: 0;
 }
 
 .utterance-time { font-size: 10px; color: var(--muted); white-space: nowrap; }
@@ -1376,3 +1376,94 @@ header {
     flex-wrap: wrap;
 }
 .minutes-type-sel { flex-shrink: 0; }
+/* ══════════════════════════════════════════════
+   TO DO 칩 드롭다운
+   ══════════════════════════════════════════════ */
+.todo-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.td-dropdown {
+    position: relative;
+    cursor: pointer;
+    outline: none;
+}
+
+.td-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    user-select: none;
+    transition: border-color 0.15s;
+    overflow: hidden;  /* 칩 자체에만 클리핑 */
+}
+.td-dropdown:hover .td-chip { border-color: rgba(124,106,247,.4); }
+
+.td-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    z-index: 300;
+    min-width: 100px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    flex-direction: column;
+    gap: 2px;
+}
+.td-dropdown.open .td-menu { display: flex; }
+
+.td-opt {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+}
+.td-opt:hover  { background: rgba(124,106,247,.12); color: var(--text); }
+.td-opt.active { color: var(--accent); font-weight: 600; }
+
+/* 우선순위 칩 색상 */
+.td-dropdown.priority-high .td-chip { background: rgba(247,92,106,.15);  color: #f75c6a; border-color: rgba(247,92,106,.35); }
+.td-dropdown.priority-mid  .td-chip { background: rgba(247,197,106,.15); color: #f7c56a; border-color: rgba(247,197,106,.35); }
+.td-dropdown.priority-low  .td-chip { background: rgba(92,240,176,.15);  color: #5cf0b0; border-color: rgba(92,240,176,.35); }
+
+/* 우선순위 옵션 색상 */
+.td-opt.priority-high { color: #f75c6a; }
+.td-opt.priority-mid  { color: #f7c56a; }
+.td-opt.priority-low  { color: #5cf0b0; }
+
+/* ── Preview Button ─────────────────────────────── */
+.preview-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.preview-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,106,247,.07);
+}
