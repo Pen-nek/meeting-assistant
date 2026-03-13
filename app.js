@@ -1067,32 +1067,69 @@ $('submitBtn').addEventListener('click', async()=>{
     $('submitBtn').style.display='none';
     $('previewBtn').style.display='none';
     $('progressSection').classList.add('visible');
+
+    const form=new FormData();
+    form.append('file',state.file);
+    form.append('speaker_count',$('speakerCount').value);
+    form.append('language',$('language').value);
+
+    setProgStep(1); // 업로드
+    let res;
+    try { res = await fetch(`${BACKEND}/analyze`,{method:'POST',body:form}); }
+    catch(err) { return _submitErr('네트워크 오류: '+err.message); }
+
+    setProgStep(2); // Gladia 대기 시작
+
+    const reader = res.body.getReader();
+    const dec    = new TextDecoder();
+    let buf = '';
+
     try {
-        setProgStep(1);
-        const form=new FormData();
-        form.append('file',state.file); form.append('speaker_count',$('speakerCount').value); form.append('language',$('language').value);
-        setProgStep(2);
-        const res=await fetch(`${BACKEND}/analyze`,{method:'POST',body:form});
-        if(!res.ok){const e=await res.json(); throw new Error(e.detail||'서버 오류');}
-        setProgStep(3);
-        state.result=await res.json(); state.speakerNames={};
-        renderTranscript(state.result.utterances); buildSpeakerPanel(state.result.utterances);
-        if(state.result.topics?.length) buildNav(state.result.topics);
-        setProgStep(4);
-        renderMinutes(state.result.minutes); renderTodos(state.result.todos);
-        setProgStep(5);
-        await new Promise(r=>setTimeout(r,400));
-        Object.keys(_stepTimers).forEach(k=>_stopElapsed(+k));
-        $('progressSection').classList.remove('visible');
-        $('resultsSection').classList.add('visible');
-        $('audioPlayerResult').classList.add('visible');
-        setStep(3); switchTab('transcript');
+        while(true) {
+            const {done, value} = await reader.read();
+            if(done) break;
+            buf += dec.decode(value, {stream:true});
+            const parts = buf.split('\n\n');
+            buf = parts.pop(); // 마지막 미완성 청크 보존
+            for(const part of parts) {
+                const eventLine = part.match(/^event:\s*(\S+)/m);
+                const dataLine  = part.match(/^data:\s*(.+)/m);
+                if(!eventLine || !dataLine) continue;
+                const ev   = eventLine[1];
+                const data = JSON.parse(dataLine[1]);
+
+                if(ev === 'progress') {
+                    setProgStep(data.step);
+                } else if(ev === 'result') {
+                    setProgStep(5);
+                    state.result = data; state.speakerNames = {};
+                    renderTranscript(state.result.utterances);
+                    buildSpeakerPanel(state.result.utterances);
+                    if(state.result.topics?.length) buildNav(state.result.topics);
+                    renderMinutes(state.result.minutes);
+                    renderTodos(state.result.todos);
+                    await new Promise(r=>setTimeout(r,400));
+                    Object.keys(_stepTimers).forEach(k=>_stopElapsed(+k));
+                    $('progressSection').classList.remove('visible');
+                    $('resultsSection').classList.add('visible');
+                    $('audioPlayerResult').classList.add('visible');
+                    setStep(3); switchTab('transcript');
+                    setupPlayer();
+                    return;
+                } else if(ev === 'error') {
+                    throw new Error(data.detail||'서버 오류');
+                }
+            }
+        }
     } catch(err) {
-        Object.keys(_stepTimers).forEach(k=>_stopElapsed(+k));
-        $('progressSection').classList.remove('visible');
-        $('submitBtn').style.display='block';
-        $('previewBtn').style.display='';
-        setStep(1); showErr('오류: '+err.message); return;
+        _submitErr('오류: '+err.message);
     }
-    setupPlayer();
 });
+
+function _submitErr(msg) {
+    Object.keys(_stepTimers).forEach(k=>_stopElapsed(+k));
+    $('progressSection').classList.remove('visible');
+    $('submitBtn').style.display='block';
+    $('previewBtn').style.display='';
+    setStep(1); showErr(msg);
+}
