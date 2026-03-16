@@ -939,9 +939,7 @@ async function dlDocx(payload,filename) {
     } catch { showErr('Word 다운로드 실패'); }
 }
 $('dlMinutesMd').addEventListener('click',()=>state.result&&dlBlob(new Blob([state.result.minutes],{type:'text/markdown'}),'회의록.md'));
-$('dlMinutesDocx').addEventListener('click',()=>state.result&&dlDocx({minutes:state.result.minutes},'회의록.docx'));
 $('dlTodosMd').addEventListener('click',()=>state.result&&dlBlob(new Blob([`# TO DO\n\n${todosToMd(state.result.todos)}`],{type:'text/markdown'}),'todo.md'));
-$('dlTodosDocx').addEventListener('click',()=>state.result&&dlDocx({todos:state.result.todos},'todo.docx'));
 
 // ── 분석 시작 ────────────────────────────────────
 
@@ -1089,20 +1087,30 @@ $('submitBtn').addEventListener('click', async()=>{
             const {done, value} = await reader.read();
             if(done) break;
             buf += dec.decode(value, {stream:true});
-            const parts = buf.split('\n\n');
-            buf = parts.pop(); // 마지막 미완성 청크 보존
-            for(const part of parts) {
-                const eventLine = part.match(/^event:\s*(\S+)/m);
-                const dataLine  = part.match(/^data:\s*(.+)/m);
-                if(!eventLine || !dataLine) continue;
-                const ev   = eventLine[1];
-                const data = JSON.parse(dataLine[1]);
+
+            // \n\n 로 이벤트 블록 분리 — 마지막 미완성 블록은 보존
+            let boundary;
+            while((boundary = buf.indexOf('\n\n')) !== -1) {
+                const part = buf.slice(0, boundary);
+                buf = buf.slice(boundary + 2);
+
+                const eventMatch = part.match(/^event:\s*(\S+)/m);
+                const dataMatch  = part.match(/^data:\s*([\s\S]+)/m);
+                if(!eventMatch || !dataMatch) continue;
+
+                const ev = eventMatch[1];
+                let data;
+                try { data = JSON.parse(dataMatch[1].trim()); }
+                catch(e) { console.error('SSE JSON parse error', e, dataMatch[1].slice(0,200)); continue; }
 
                 if(ev === 'progress') {
                     setProgStep(data.step);
-                } else if(ev === 'result') {
-                    setProgStep(5);
-                    state.result = data; state.speakerNames = {};
+                } else if(ev === 'done') {
+                    setProgStep(5); // 4단계 done 처리용 (5 호출 시 4가 done으로 전환)
+                    // 결과는 별도 엔드포인트로 fetch (SSE 청크 분리 문제 방지)
+                    const rRes = await fetch(`${BACKEND}/result/${data.job_id}`);
+                    if(!rRes.ok) throw new Error('결과 조회 실패');
+                    state.result = await rRes.json(); state.speakerNames = {};
                     renderTranscript(state.result.utterances);
                     buildSpeakerPanel(state.result.utterances);
                     if(state.result.topics?.length) buildNav(state.result.topics);
@@ -1132,4 +1140,4 @@ function _submitErr(msg) {
     $('submitBtn').style.display='block';
     $('previewBtn').style.display='';
     setStep(1); showErr(msg);
-}
+}hh

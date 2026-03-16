@@ -278,34 +278,38 @@ def _check_keys():
         raise HTTPException(500, ".env 파일에 API 키를 설정해주세요.")
 
 
+# 진행중인 결과 임시 저장 (job_id → result)
+import uuid
+_jobs: dict = {}
+
 @app.post("/analyze")
 async def analyze_endpoint(
         file: UploadFile = File(...),
         speaker_count: int = Form(4),
         language: str = Form("ko"),
 ):
-    """SSE 스트리밍: 각 단계 완료 시 progress 이벤트, 최종 결과는 result 이벤트로 전송."""
+    """SSE: progress 이벤트로 단계 알림, 완료 시 job_id 전달. 결과는 /result/{job_id} 로 조회."""
     _check_keys()
     audio = await file.read()
+    job_id = str(uuid.uuid4())
 
     async def stream():
         def sse(event: str, data) -> str:
             return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-
         try:
-            yield sse("progress", {"step": 2, "msg": "화자 분리 및 음성 인식 중..."})
+            yield sse("progress", {"step": 2})
             utterances = await transcribe(audio, speaker_count, language)
 
             full_text    = "\n".join(f"[발화자 {u['speaker']}] {u['text']}" for u in utterances)
             indexed_text = "\n".join(f"{i} [발화자 {u['speaker']}] {u['text']}" for i, u in enumerate(utterances))
             speaker_list = ", ".join(str(s) for s in sorted({u["speaker"] for u in utterances}))
 
-            yield sse("progress", {"step": 3, "msg": "회의록 생성 중..."})
+            yield sse("progress", {"step": 3})
             t  = _truncate(full_text)
             it = _truncate(indexed_text)
             minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{t}\n\n{_MINUTES}")
 
-            yield sse("progress", {"step": 4, "msg": "TO DO 추출 중..."})
+            yield sse("progress", {"step": 4})
             await asyncio.sleep(1)
             todo_raw = await groq(
                 f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{t}\n\n"
@@ -313,7 +317,6 @@ async def analyze_endpoint(
                 max_tokens=1000,
             )
 
-            yield sse("progress", {"step": 5, "msg": "마무리 중..."})
             await asyncio.sleep(1)
             topics_raw = await groq(
                 f"다음 회의 대화입니다 (맨 앞 숫자가 utterance 인덱스).\n\n{it}\n\n{_TOPICS}",
@@ -323,13 +326,14 @@ async def analyze_endpoint(
             todos  = _parse_todos(todo_raw)
             topics = _parse_json(topics_raw, [])
 
-            yield sse("result", {
+            _jobs[job_id] = {
                 "utterances": utterances,
                 "full_text":  full_text,
                 "minutes":    minutes_raw,
                 "todos":      [t.dict() for t in todos],
                 "topics":     topics,
-            })
+            }
+            yield sse("done", {"job_id": job_id})
         except HTTPException as e:
             yield sse("error", {"detail": e.detail})
         except Exception as e:
@@ -339,6 +343,12 @@ async def analyze_endpoint(
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.get("/result/{job_id}")
+async def get_result(job_id: str):
+    result = _jobs.pop(job_id, None)
+    if result is None:
+        raise HTTPException(404, "결과를 찾을 수 없습니다.")
+    return result
 @app.post("/regenerate")
 async def regenerate_endpoint(full_text: str = Form(...), speaker_count: int = Form(4)):
     _check_keys()
