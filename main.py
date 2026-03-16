@@ -71,28 +71,6 @@ _TODO = """규칙:
 JSON 배열만 응답 (다른 텍스트 없이):
 [{"task":"할 일","owner":"담당자 또는 null","speaker":0,"priority":"높음|보통|낮음"}]"""
 
-_TOPICS = """당신은 회의 대화 분석 전문가입니다.
-
-위 대화의 각 줄 맨 앞 숫자가 utterance 인덱스(0부터)입니다.
-이 인덱스를 정확히 사용해 주제별로 분류하세요.
-
-규칙:
-1. title은 반드시 순수 한국어(한글)로만 작성. 한자·중국어·영어 절대 금지.
-2. 대화의 실제 맥락 흐름을 기준으로 나누세요.
-3. 주제 수: 최소 2개, 최대 8개.
-4. title: 실제 논의 내용을 담은 명사형 한국어 (8자 이내).
-5. start_idx·end_idx: 위 대화의 실제 줄 번호를 그대로 사용.
-6. 전체 utterance를 빠짐없이 커버하고 중복·공백 없이.
-
-주제 구분 기준:
-- 새 안건으로 전환될 때 새 주제 시작
-- 같은 주제의 세부 논의는 하나로 묶기
-- 인사·잡담 → "회의 시작", 마무리 발언 → "마무리"
-
-순수 JSON 배열만 응답 (``` 없이):
-[{"title":"주제명","start_idx":0,"end_idx":5}]"""
-
-
 # ── Gladia: 음성 인식 + 화자 분리 ───────────────────
 async def transcribe(audio: bytes, n_speakers: int, lang: str) -> list:
     headers = {"x-gladia-key": GLADIA_KEY}
@@ -207,12 +185,7 @@ async def analyze(full_text: str, speaker_list: str, indexed_text: str) -> tuple
         f"발화자 번호: {speaker_list}\n\n{_TODO}",
         max_tokens=1000,
     )
-    await asyncio.sleep(1)
-    topics_raw  = await groq(
-        f"다음 회의 대화입니다 (맨 앞 숫자가 utterance 인덱스).\n\n{it}\n\n{_TOPICS}",
-        max_tokens=800,
-    )
-    return minutes_raw, _parse_todos(todo_raw), _parse_json(topics_raw, [])
+    return minutes_raw, _parse_todos(todo_raw), []
 def _parse_json(raw: str, fallback):
     try:
         return json.loads(raw.replace("```json","").replace("```","").strip())
@@ -317,21 +290,14 @@ async def analyze_endpoint(
                 max_tokens=1000,
             )
 
-            await asyncio.sleep(1)
-            topics_raw = await groq(
-                f"다음 회의 대화입니다 (맨 앞 숫자가 utterance 인덱스).\n\n{it}\n\n{_TOPICS}",
-                max_tokens=800,
-            )
-
-            todos  = _parse_todos(todo_raw)
-            topics = _parse_json(topics_raw, [])
+            todos = _parse_todos(todo_raw)
 
             _jobs[job_id] = {
                 "utterances": utterances,
                 "full_text":  full_text,
                 "minutes":    minutes_raw,
                 "todos":      [t.dict() for t in todos],
-                "topics":     topics,
+                "topics":     [],
             }
             yield sse("done", {"job_id": job_id})
         except HTTPException as e:
@@ -358,8 +324,8 @@ async def regenerate_endpoint(full_text: str = Form(...), speaker_count: int = F
         int(l.split("]")[0].replace("[발화자 ",""))
         for l in lines if l.startswith("[발화자 ")
     }))
-    minutes, todos, topics = await analyze(full_text, speaker_list, indexed_text)
-    return {"minutes": minutes, "todos": [t.dict() for t in todos], "topics": topics}
+    minutes, todos, _ = await analyze(full_text, speaker_list, indexed_text)
+    return {"minutes": minutes, "todos": [t.dict() for t in todos], "topics": []}
 
 
 @app.post("/generate-docx")

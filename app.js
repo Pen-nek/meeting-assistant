@@ -112,7 +112,6 @@ function switchTab(name) {
     const firstActive = $$('.tab-btn')[0]?.classList.contains('active');
     $$('.tab-content').forEach(c => { c.style.borderTopLeftRadius = firstActive ? '0' : ''; });
     updateFab();
-    updateNav();
 }
 $$('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 switchTab('transcript');
@@ -472,7 +471,6 @@ window.addEventListener('scroll', () => {
         const rem = document.documentElement.scrollHeight - innerHeight - y;
         if (rem < 400) appendMore();
     }
-    if (state.topics.length) updateNavActive();
     if (!state.scrollPaused && !audioEl.paused && state.tab === 'transcript') {
         state.autoScroll = false;
         clearTimeout(state.scrollTimer);
@@ -481,49 +479,7 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 // ── 주제 네비게이터 ──────────────────────────────
-function updateNav() {
-    $('fixedNav').classList.toggle('visible', state.tab === 'transcript' && !!state.result && state.topics.length > 0);
-}
-function buildNav(topics) {
-    state.topics = topics || [];
-    $('fixedNavDots').innerHTML = $('navTopicLinks').innerHTML = '';
-    if (!state.topics.length) { $('fixedNav').classList.remove('visible'); return; }
-    state.topics.forEach((t, i) => {
-        const dot = Object.assign(document.createElement('div'), { className: 'fixed-nav-topic-dot', title: t.title });
-        dot.dataset.topicIdx = i;
-        dot.addEventListener('click', () => goToTopic(i));
-        $('fixedNavDots').appendChild(dot);
-        const btn = document.createElement('button');
-        btn.className = 'topic-nav-item'; btn.dataset.topicIdx = i;
-        btn.innerHTML = `<span class="topic-nav-num">${i+1}</span><span class="topic-nav-title">${t.title}</span>`;
-        btn.addEventListener('click', () => goToTopic(i));
-        $('navTopicLinks').appendChild(btn);
-    });
-    updateNav();
-    setTimeout(updateNavActive, 200);
-}
-function goToTopic(i) {
-    const el = $$('.utterance-item')[state.topics[i]?.start_idx];
-    if (!el) return;
-    setNavActive(i); state.scrollPaused = true;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => { state.scrollPaused = false; }, 800);
-}
-function setNavActive(i) {
-    $$('.fixed-nav-topic-dot, .topic-nav-item').forEach(el => el.classList.remove('active'));
-    $$(`[data-topic-idx="${i}"]`).forEach(el => el.classList.add('active'));
-}
-function updateNavActive() {
-    if (!state.topics.length) return;
-    const items = $$('.utterance-item'); if (!items.length) return;
-    const mid = scrollY + innerHeight * 0.35;
-    let active = 0;
-    state.topics.forEach((t, i) => {
-        const el = items[t.start_idx];
-        if (el && el.getBoundingClientRect().top + scrollY <= mid) active = i;
-    });
-    setNavActive(active);
-}
+
 
 // ── 발화자 패널 ──────────────────────────────────
 function buildSpeakerPanel(utterances) {
@@ -593,7 +549,6 @@ $('mergeBtn').addEventListener('click', () => {
     state.utterances=state.utterances.map(u=>sel.includes(u.speaker+1)?{...u,speaker:tgt-1}:u);
     state.speakerNames[tgt]=name; sel.slice(1).forEach(s=>delete state.speakerNames[s]);
     renderTranscript(state.utterances); buildSpeakerPanel(state.utterances);
-    if (state.topics.length) buildNav(state.topics);
     if (state.result?.todos) renderTodos(state.result.todos);
     $('mergeNameInput').value=''; closeModal();
 });
@@ -620,7 +575,6 @@ function appendMore() {
     renderBatch(state.rendered,next); state.rendered=next;
     if (state.rendered<state.utterances.length) appendSentinel();
     state.loadingMore=false;
-    if (state.topics.length) updateNavActive();
 }
 function appendSentinel() {
     const s=Object.assign(document.createElement('div'),{id:'virtualSentinel'});
@@ -698,11 +652,17 @@ document.addEventListener('click',e=>{
     if(!e.target.closest('.td-dropdown')) $$('.td-dropdown.open').forEach(d=>d.classList.remove('open'));
 });
 document.addEventListener('keydown',e=>e.key==='Escape'&&hideCtx());
-function changeSpk(itemEl,newSpk) {
-    if (+itemEl.dataset.speaker===newSpk) return;
-    itemEl.dataset.speaker=newSpk;
-    itemEl.querySelector('.utterance-text').dataset.speaker=newSpk;
-    rebuildFromDOM();
+function changeSpk(itemEl, newSpk) {
+    if (+itemEl.dataset.speaker === newSpk) return;
+
+    // state.utterances 업데이트
+    const idx = +itemEl.dataset.utteranceIdx;
+    if (state.utterances[idx]) state.utterances[idx].speaker = newSpk - 1;
+
+    // 스크롤 위치 보존 후 재렌더
+    const scrollY_ = window.scrollY;
+    renderTranscript(state.utterances);
+    window.scrollTo({ top: scrollY_, behavior: 'instant' });
 }
 
 // ── 회의록 렌더 ──────────────────────────────────
@@ -916,7 +876,6 @@ $('regenBtn').addEventListener('click', async()=>{
         const data=await res.json();
         Object.assign(state.result,data);
         renderMinutes(data.minutes); renderTodos(data.todos);
-        if(data.topics?.length) buildNav(data.topics);
         btn.textContent='✅ 완료!'; fab.textContent='✅';
         setTimeout(()=>{ btn.textContent='🔄 재생성'; fab.textContent='↻'; btn.disabled=fab.disabled=false; },2000);
         switchTab('minutes');
@@ -1025,7 +984,6 @@ $('previewBtn').addEventListener('click', () => {
         $('resultsSection').classList.remove('visible');
         $('audioPlayerResult').classList.remove('visible');
         $('fabGroup').classList.remove('visible');
-        $('fixedNav').classList.remove('visible');
         btn.textContent = '👀 결과 예시 보기';
         state.result = null;
         return;
@@ -1045,7 +1003,6 @@ $('previewBtn').addEventListener('click', () => {
 
     renderTranscript(state.result.utterances);
     buildSpeakerPanel(state.result.utterances);
-    if (state.result.topics?.length) buildNav(state.result.topics);
     renderMinutes(state.result.minutes);
     renderTodos(state.result.todos);
 
@@ -1113,7 +1070,6 @@ $('submitBtn').addEventListener('click', async()=>{
                     state.result = await rRes.json(); state.speakerNames = {};
                     renderTranscript(state.result.utterances);
                     buildSpeakerPanel(state.result.utterances);
-                    if(state.result.topics?.length) buildNav(state.result.topics);
                     renderMinutes(state.result.minutes);
                     renderTodos(state.result.todos);
                     await new Promise(r=>setTimeout(r,400));
@@ -1140,4 +1096,4 @@ function _submitErr(msg) {
     $('submitBtn').style.display='block';
     $('previewBtn').style.display='';
     setStep(1); showErr(msg);
-}hh
+}
