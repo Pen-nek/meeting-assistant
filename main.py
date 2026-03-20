@@ -2,7 +2,7 @@
 meeting-assistant · main.py
 실행: uvicorn main:app --reload
 """
-import asyncio, io, json, os
+import asyncio, io, json, os, re, uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
@@ -20,9 +20,12 @@ from pydantic import BaseModel
 load_dotenv()
 GLADIA_KEY = os.getenv("GLADIA_API_KEY", "")
 GROQ_KEY   = os.getenv("GROQ_API_KEY",   "")
+GROQ_MODEL      = "llama-3.1-8b-instant"
+GROQ_FALLBACK   = "llama-3.3-70b-versatile"
+MAX_CHARS       = 8000
 
-# ── HTTP 클라이언트 (앱 수명 동안 재사용) ─────────────
 http: httpx.AsyncClient | None = None
+_jobs: dict = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,7 +38,7 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
-# ── 모델 ─────────────────────────────────────────────
+# ── 모델 ─────────────────────────────────────────
 class Todo(BaseModel):
     task:     str
     owner:    Optional[str] = None
@@ -43,7 +46,14 @@ class Todo(BaseModel):
     priority: Optional[str] = "보통"
 
 
-# ── 프롬프트 ──────────────────────────────────────────
+# ── 프롬프트 ──────────────────────────────────────
+_SYSTEM_KO = (
+    "You are a Korean meeting assistant. "
+    "Write ALL text values in Korean (한글) only. "
+    "Never use Chinese characters, Japanese, or English in text values. "
+    "JSON keys stay in English; all values must be Korean."
+)
+
 _MINUTES = """아래 규칙을 반드시 따르세요:
 1. 반드시 한국어로만 작성하세요. 외국 문자 사용 금지.
 2. 불분명한 내용은 추측하지 말고 생략하세요.
@@ -71,12 +81,39 @@ _TODO = """규칙:
 JSON 배열만 응답 (다른 텍스트 없이):
 [{"task":"할 일","owner":"담당자 또는 null","speaker":0,"priority":"높음|보통|낮음"}]"""
 
-# ── Gladia: 음성 인식 + 화자 분리 ───────────────────
-async def transcribe(audio: bytes, n_speakers: int, lang: str) -> list:
-    headers = {"x-gladia-key": GLADIA_KEY}
-    lang_code = {"ko":"ko","ja":"ja","zh":"zh"}.get(lang, "en")
 
-    # 1) 파일 업로드
+# ── 유틸 ─────────────────────────────────────────
+def _truncate(text: str) -> str:
+    if len(text) <= MAX_CHARS:
+        return text
+    head = int(MAX_CHARS * 0.7)
+    return text[:head] + "\n\n...(중략)...\n\n" + text[-(MAX_CHARS - head):]
+
+def _strip_cjk(text: str) -> str:
+    return re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
+
+def _parse_json(raw: str, fallback):
+    try:
+        return json.loads(raw.replace("```json", "").replace("```", "").strip())
+    except Exception:
+        return fallback
+
+def _parse_todos(raw: str) -> List[Todo]:
+    try:
+        return [Todo(**t) for t in _parse_json(raw, [])]
+    except Exception:
+        return []
+
+def _check_keys():
+    if not GLADIA_KEY or not GROQ_KEY:
+        raise HTTPException(500, ".env 파일에 API 키를 설정해주세요.")
+
+
+# ── Gladia: 음성 인식 + 화자 분리 ───────────────
+async def transcribe(audio: bytes, n_speakers: int, lang: str) -> list:
+    headers   = {"x-gladia-key": GLADIA_KEY}
+    lang_code = {"ko": "ko", "ja": "ja", "zh": "zh"}.get(lang, "en")
+
     up = await http.post(
         "https://api.gladia.io/v2/upload",
         headers=headers,
@@ -84,7 +121,6 @@ async def transcribe(audio: bytes, n_speakers: int, lang: str) -> list:
     )
     up.raise_for_status()
 
-    # 2) 전사 요청
     tr = await http.post(
         "https://api.gladia.io/v2/transcription",
         headers={**headers, "Content-Type": "application/json"},
@@ -98,46 +134,22 @@ async def transcribe(audio: bytes, n_speakers: int, lang: str) -> list:
     tr.raise_for_status()
     result_url = tr.json()["result_url"]
 
-    # 3) 폴링
     for i in range(120):
         await asyncio.sleep(3)
-        poll = await http.get(result_url, headers=headers)
-        data = poll.json()
+        data = (await http.get(result_url, headers=headers)).json()
         print(f"[Gladia poll #{i}] status={data.get('status')}")
         if data["status"] == "done":
             utterances = data["result"]["transcription"]["utterances"]
-            # speaker 필드 없는 경우 보정
-            for i, u in enumerate(utterances):
-                if "speaker" not in u:
-                    u["speaker"] = 0
+            for u in utterances:
+                u.setdefault("speaker", 0)
             return utterances
         if data["status"] in ("error", "failed"):
             raise HTTPException(500, f"음성 인식 실패: {data.get('error_code')}")
     raise HTTPException(500, "음성 인식 타임아웃")
 
 
-# ── Groq: LLM 호출 ───────────────────────────────────
-# 한국어 강제 system 메시지 — 회의록/일반 텍스트 응답용
-SYSTEM_KO = (
-    "You are a Korean meeting assistant. "
-    "Write ALL text values in Korean (한글) only. "
-    "Never use Chinese characters, Japanese, or English in text values. "
-    "JSON keys stay in English; all values must be Korean."
-)
-
-GROQ_MODEL    = "llama-3.1-8b-instant"
-GROQ_FALLBACK = "llama-3.3-70b-versatile"
-MAX_CHARS = 8000
-
-def _truncate(text: str) -> str:
-    if len(text) <= MAX_CHARS:
-        return text
-    head = int(MAX_CHARS * 0.7)
-    tail = MAX_CHARS - head
-    return text[:head] + "\n\n...(중략)...\n\n" + text[-tail:]
-
+# ── Groq: LLM 호출 ───────────────────────────────
 async def groq(prompt: str, max_tokens: int = 2000, retries: int = 4) -> str:
-    """Groq API 호출. 429 시 Retry-After 대기, 2회 이상 실패 시 경량 모델 폴백."""
     delay = 5.0
     for attempt in range(retries):
         model = GROQ_MODEL if attempt < 2 else GROQ_FALLBACK
@@ -148,7 +160,7 @@ async def groq(prompt: str, max_tokens: int = 2000, retries: int = 4) -> str:
                 "model": model,
                 "max_tokens": max_tokens,
                 "messages": [
-                    {"role": "system", "content": SYSTEM_KO},
+                    {"role": "system", "content": _SYSTEM_KO},
                     {"role": "user",   "content": prompt},
                 ],
             },
@@ -162,108 +174,53 @@ async def groq(prompt: str, max_tokens: int = 2000, retries: int = 4) -> str:
             delay = min(delay * 2, 60)
             continue
         res.raise_for_status()
-        text = res.json()["choices"][0]["message"]["content"]
-        return _strip_cjk(text)
+        return _strip_cjk(res.json()["choices"][0]["message"]["content"])
     raise HTTPException(429, "Groq API 요청 한도 초과. 잠시 후 다시 시도해주세요.")
 
 
-def _strip_cjk(text: str) -> str:
-    import re
-    return re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+', '', text)
-
-
-# ── 공통 분석: 회의록 → TO DO → 주제 ──
-async def analyze(full_text: str, speaker_list: str, indexed_text: str) -> tuple:
-    t  = _truncate(full_text)
-    it = _truncate(indexed_text)
-    print(f"[analyze] {len(full_text)}자 → truncated {len(t)}자")
-
-    minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{t}\n\n{_MINUTES}")
-    await asyncio.sleep(1)
-    todo_raw    = await groq(
-        f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{t}\n\n"
-        f"발화자 번호: {speaker_list}\n\n{_TODO}",
-        max_tokens=1000,
-    )
-    return minutes_raw, _parse_todos(todo_raw), []
-def _parse_json(raw: str, fallback):
-    try:
-        return json.loads(raw.replace("```json","").replace("```","").strip())
-    except Exception:
-        return fallback
-
-def _parse_todos(raw: str) -> List[Todo]:
-    try:
-        return [Todo(**t) for t in _parse_json(raw, [])]
-    except Exception:
-        return []
-
-
-# ── Word 생성 ─────────────────────────────────────────
+# ── Word 생성 ─────────────────────────────────────
 def build_docx(minutes: str, todos: List[Todo], transcript: str = "") -> bytes:
     doc = Document()
-
-    # 제목
-    title = doc.add_heading("회의록", 0)
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    date = doc.add_paragraph(datetime.now().strftime("%Y년 %m월 %d일"))
-    date.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    date.runs[0].font.size = Pt(10)
-    date.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x88)
+    title = doc.add_heading("회의록", 0); title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    date = doc.add_paragraph(datetime.now().strftime("%Y년 %m월 %d일")); date.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    date.runs[0].font.size = Pt(10); date.runs[0].font.color.rgb = RGBColor(0x66, 0x66, 0x88)
     doc.add_paragraph()
 
     if minutes:
         doc.add_heading("📋 회의록", 1)
         for line in minutes.split("\n"):
-            if line.startswith(("## ","# ")):
-                doc.add_heading(line.lstrip("# "), 2)
-            elif line.strip():
-                doc.add_paragraph(line)
+            if line.startswith(("## ", "# ")): doc.add_heading(line.lstrip("# "), 2)
+            elif line.strip(): doc.add_paragraph(line)
 
     if todos:
         doc.add_page_break()
         doc.add_heading("✅ TO DO", 1)
-        tbl = doc.add_table(rows=1, cols=4)
-        tbl.style = "Table Grid"
-        for i, h in enumerate(["할 일","담당자","우선순위","완료"]):
-            c = tbl.rows[0].cells[i]
-            c.text = h; c.paragraphs[0].runs[0].font.bold = True
+        tbl = doc.add_table(rows=1, cols=4); tbl.style = "Table Grid"
+        for i, h in enumerate(["할 일", "담당자", "우선순위", "완료"]):
+            c = tbl.rows[0].cells[i]; c.text = h; c.paragraphs[0].runs[0].font.bold = True
         for t in todos:
             r = tbl.add_row().cells
-            r[0].text = t.task; r[1].text = t.owner or "-"
-            r[2].text = t.priority or "보통"; r[3].text = "☐"
+            r[0].text = t.task; r[1].text = t.owner or "-"; r[2].text = t.priority or "보통"; r[3].text = "☐"
 
     if transcript:
         doc.add_page_break()
         doc.add_heading("📝 전체 대화", 1)
         for line in transcript.split("\n"):
-            if line.strip():
-                doc.add_paragraph(line)
+            if line.strip(): doc.add_paragraph(line)
 
-    buf = io.BytesIO()
-    doc.save(buf); buf.seek(0)
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0)
     return buf.read()
 
 
-# ── 엔드포인트 ────────────────────────────────────────
-def _check_keys():
-    if not GLADIA_KEY or not GROQ_KEY:
-        raise HTTPException(500, ".env 파일에 API 키를 설정해주세요.")
-
-
-# 진행중인 결과 임시 저장 (job_id → result)
-import uuid
-_jobs: dict = {}
-
+# ── 엔드포인트 ────────────────────────────────────
 @app.post("/analyze")
 async def analyze_endpoint(
         file: UploadFile = File(...),
         speaker_count: int = Form(4),
         language: str = Form("ko"),
 ):
-    """SSE: progress 이벤트로 단계 알림, 완료 시 job_id 전달. 결과는 /result/{job_id} 로 조회."""
     _check_keys()
-    audio = await file.read()
+    audio  = await file.read()
     job_id = str(uuid.uuid4())
 
     async def stream():
@@ -271,33 +228,25 @@ async def analyze_endpoint(
             return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
         try:
             yield sse("progress", {"step": 2})
-            utterances = await transcribe(audio, speaker_count, language)
-
+            utterances   = await transcribe(audio, speaker_count, language)
             full_text    = "\n".join(f"[발화자 {u['speaker']}] {u['text']}" for u in utterances)
-            indexed_text = "\n".join(f"{i} [발화자 {u['speaker']}] {u['text']}" for i, u in enumerate(utterances))
             speaker_list = ", ".join(str(s) for s in sorted({u["speaker"] for u in utterances}))
 
             yield sse("progress", {"step": 3})
-            t  = _truncate(full_text)
-            it = _truncate(indexed_text)
-            minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{t}\n\n{_MINUTES}")
+            minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{_truncate(full_text)}\n\n{_MINUTES}")
 
             yield sse("progress", {"step": 4})
             await asyncio.sleep(1)
             todo_raw = await groq(
-                f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{t}\n\n"
-                f"발화자 번호: {speaker_list}\n\n{_TODO}",
+                f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{_truncate(full_text)}\n\n발화자 번호: {speaker_list}\n\n{_TODO}",
                 max_tokens=1000,
             )
-
             todos = _parse_todos(todo_raw)
-
             _jobs[job_id] = {
                 "utterances": utterances,
                 "full_text":  full_text,
                 "minutes":    minutes_raw,
                 "todos":      [t.dict() for t in todos],
-                "topics":     [],
             }
             yield sse("done", {"job_id": job_id})
         except HTTPException as e:
@@ -315,17 +264,25 @@ async def get_result(job_id: str):
     if result is None:
         raise HTTPException(404, "결과를 찾을 수 없습니다.")
     return result
+
+
 @app.post("/regenerate")
 async def regenerate_endpoint(full_text: str = Form(...), speaker_count: int = Form(4)):
     _check_keys()
     lines = [l for l in full_text.split("\n") if l.strip()]
-    indexed_text = "\n".join(f"{i} {l}" for i, l in enumerate(lines))
     speaker_list = ", ".join(str(s) for s in sorted({
-        int(l.split("]")[0].replace("[발화자 ",""))
+        int(l.split("]")[0].replace("[발화자 ", ""))
         for l in lines if l.startswith("[발화자 ")
     }))
-    minutes, todos, _ = await analyze(full_text, speaker_list, indexed_text)
-    return {"minutes": minutes, "todos": [t.dict() for t in todos], "topics": []}
+    t = _truncate(full_text)
+    minutes_raw = await groq(f"다음은 회의 대화 내용입니다.\n\n{t}\n\n{_MINUTES}")
+    await asyncio.sleep(1)
+    todo_raw    = await groq(
+        f"다음 회의 대화에서 액션 아이템을 추출하세요.\n\n{t}\n\n발화자 번호: {speaker_list}\n\n{_TODO}",
+        max_tokens=1000,
+    )
+    todos = _parse_todos(todo_raw)
+    return {"minutes": minutes_raw, "todos": [t.dict() for t in todos]}
 
 
 @app.post("/generate-docx")
