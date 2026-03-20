@@ -1496,3 +1496,76 @@ header {
     color: var(--accent);
     background: rgba(124,106,247,.07);
 }
+/* ── Word Replace Button (toolbar) ─────────────── */
+.word-replace-btn {
+    padding: 6px 14px;
+    background: rgba(247,197,106,0.1);
+    border: 1px solid rgba(247,197,106,0.35);
+    border-radius: 8px;
+    color: var(--accent2);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    white-space: nowrap;
+}
+.word-replace-btn:hover { background: rgba(247,197,106,0.2); border-color: var(--accent2); }
+
+/* ── FAB word-replace ───────────────────────────── */
+.fab-word-replace {
+    background: rgba(247,197,106,0.15);
+    border-color: rgba(247,197,106,0.4);
+    color: var(--accent2); font-size: 16px;
+}
+.fab-word-replace:hover { background: var(--accent2); color: #000; border-color: var(--accent2); }
+.fab-word-replace.hidden { display: none; }
+
+/* ── Word Replace Modal ─────────────────────────── */
+.word-replace-form {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px; flex-wrap: wrap;
+}
+.word-replace-row { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+.word-replace-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.word-replace-input {
+    padding: 9px 14px;
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    outline: none; transition: border-color 0.2s;
+}
+.word-replace-input:focus { border-color: var(--accent2); }
+.word-replace-arrow { font-size: 20px; color: var(--muted); padding-top: 18px; }
+.word-replace-options { margin-bottom: 14px; }
+.word-replace-option-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--muted); cursor: pointer; user-select: none;
+}
+.word-replace-option-label input[type="checkbox"] { accent-color: var(--accent2); width: 14px; height: 14px; }
+
+.word-replace-preview {
+    min-height: 28px; margin-bottom: 16px;
+    font-size: 13px; line-height: 1.5;
+}
+.wr-warn    { color: var(--error); }
+.wr-count   { color: var(--text); }
+.wr-count b { color: var(--accent2); }
+.wr-success { color: var(--success); }
+
+.word-replace-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.word-replace-preview-btn {
+    padding: 9px 18px;
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+}
+.word-replace-preview-btn:hover { border-color: var(--accent); color: var(--accent); }
+.word-replace-confirm-btn {
+    padding: 9px 18px;
+    background: rgba(92,240,176,0.15); border: 1px solid rgba(92,240,176,0.4);
+    border-radius: 8px; color: var(--success);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+}
+.word-replace-confirm-btn:hover:not(:disabled) { background: var(--success); color: #000; }
+.word-replace-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }

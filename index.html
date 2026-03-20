@@ -168,6 +168,7 @@
                         <h2 class="tab-section-title">전체 대화</h2>
                         <div class="toolbar-right">
                             <span class="edit-hint">✏️ 클릭해서 수정 · 우클릭으로 발화자 변경</span>
+                            <button class="word-replace-btn" id="wordReplaceBtn">✍️ 단어 수정</button>
                             <button class="regen-btn" id="regenBtn">🔄 재생성</button>
                         </div>
                     </div>
@@ -209,8 +210,9 @@
 
 <!-- ═══ FAB: 우하단 ═══ -->
 <div class="fab-group" id="fabGroup">
-    <button class="fab-btn fab-save" id="fabSave" title="수정 내용으로 재생성">↻</button>
-    <button class="fab-btn fab-top"  id="fabTop"  title="맨 위로">↑</button>
+    <button class="fab-btn fab-save"         id="fabSave"        title="수정 내용으로 재생성">↻</button>
+    <button class="fab-btn fab-word-replace" id="fabWordReplace" title="단어 수정">✍️</button>
+    <button class="fab-btn fab-top"          id="fabTop"         title="맨 위로">↑</button>
 </div>
 
 <!-- 우클릭 컨텍스트 메뉴 -->
@@ -253,6 +255,41 @@
                 </div>
             </section>
 
+        </div>
+    </div>
+</div>
+
+<!-- 단어 수정 모달 -->
+<div class="modal-backdrop" id="wordReplaceBackdrop">
+    <div class="modal" id="wordReplaceModal">
+        <div class="modal-header">
+            <h3>✍️ 단어 수정</h3>
+            <button class="modal-close" id="wordReplaceClose">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="modal-desc">전체 대화에서 잘못 인식된 단어나 표현을 일괄 수정합니다.</p>
+            <div class="word-replace-form">
+                <div class="word-replace-row">
+                    <label class="word-replace-label">기존 단어</label>
+                    <input class="word-replace-input" id="wordFrom" placeholder="찾을 단어 입력..." autocomplete="off" />
+                </div>
+                <div class="word-replace-arrow">→</div>
+                <div class="word-replace-row">
+                    <label class="word-replace-label">변경할 단어</label>
+                    <input class="word-replace-input" id="wordTo" placeholder="바꿀 단어 입력..." autocomplete="off" />
+                </div>
+            </div>
+            <div class="word-replace-options">
+                <label class="word-replace-option-label">
+                    <input type="checkbox" id="wordCaseSensitive" />
+                    대소문자 구분
+                </label>
+            </div>
+            <div class="word-replace-preview" id="wordReplacePreview"></div>
+            <div class="word-replace-actions">
+                <button class="word-replace-preview-btn" id="wordPreviewBtn">🔍 미리보기</button>
+                <button class="word-replace-confirm-btn" id="wordConfirmBtn" disabled>✅ 수정 적용</button>
+            </div>
         </div>
     </div>
 </div>

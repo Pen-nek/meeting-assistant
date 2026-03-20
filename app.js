@@ -447,12 +447,14 @@ function updateFab() {
     if (!state.result) return;
     $('fabGroup').classList.add('visible');
     $('fabSave').classList.toggle('hidden', state.tab !== 'transcript');
+    $('fabWordReplace').classList.toggle('hidden', state.tab !== 'transcript');
     // fabTop title 탭별 변경
     const labels = { transcript: '전체 대화 맨 위로', minutes: '회의록 맨 위로', todos: 'TO DO 맨 위로' };
     $('fabTop').title = labels[state.tab] || '맨 위로';
 }
 $('fabTop').addEventListener('click',  scrollTabTop);
 $('fabSave').addEventListener('click', () => $('regenBtn').click());
+$('fabWordReplace').addEventListener('click', () => openWordReplaceModal());
 
 window.addEventListener('scroll', () => {
     if (!state.result) return;
@@ -862,6 +864,83 @@ $('addTodoBtn').addEventListener('click', () => {
     });
     form.querySelector('.todo-add-cancel').addEventListener('click',()=>form.remove());
 });
+
+// ── 단어 수정 ────────────────────────────────────
+function openWordReplaceModal() {
+    $('wordFrom').value = '';
+    $('wordTo').value = '';
+    $('wordCaseSensitive').checked = false;
+    $('wordReplacePreview').innerHTML = '';
+    $('wordConfirmBtn').disabled = true;
+    $('wordReplaceBackdrop').classList.add('visible');
+    $('wordFrom').focus();
+}
+function closeWordReplaceModal() {
+    $('wordReplaceBackdrop').classList.remove('visible');
+}
+
+$('wordReplaceBtn').addEventListener('click', openWordReplaceModal);
+$('wordReplaceClose').addEventListener('click', closeWordReplaceModal);
+$('wordReplaceBackdrop').addEventListener('click', e => e.target === $('wordReplaceBackdrop') && closeWordReplaceModal());
+
+// 미리보기: 몇 건 매칭되는지 표시
+$('wordPreviewBtn').addEventListener('click', () => {
+    const from = $('wordFrom').value.trim();
+    const to   = $('wordTo').value.trim();
+    const preview = $('wordReplacePreview');
+    if (!from) { preview.innerHTML = '<span class="wr-warn">찾을 단어를 입력하세요.</span>'; $('wordConfirmBtn').disabled = true; return; }
+
+    const flags = $('wordCaseSensitive').checked ? 'g' : 'gi';
+    const re = new RE(from, flags);
+    const items = $$('.utterance-text');
+    let count = 0;
+    items.forEach(el => { const m = el.innerText.match(re); if (m) count += m.length; });
+
+    if (count === 0) {
+        preview.innerHTML = '<span class="wr-warn">일치하는 단어가 없습니다.</span>';
+        $('wordConfirmBtn').disabled = true;
+    } else {
+        preview.innerHTML = `<span class="wr-count"><b>${count}</b>건 발견 → "<b>${escHtml(to || '(빈 값)')}</b>"으로 변경됩니다.</span>`;
+        $('wordConfirmBtn').disabled = false;
+    }
+});
+
+// 입력 바뀌면 미리보기 초기화
+[$('wordFrom'), $('wordTo'), $('wordCaseSensitive')].forEach(el =>
+    el.addEventListener('input', () => { $('wordReplacePreview').innerHTML = ''; $('wordConfirmBtn').disabled = true; })
+);
+
+// 엔터로 미리보기
+$('wordFrom').addEventListener('keydown', e => e.key === 'Enter' && $('wordPreviewBtn').click());
+$('wordTo').addEventListener('keydown',   e => e.key === 'Enter' && $('wordPreviewBtn').click());
+
+// 수정 적용
+$('wordConfirmBtn').addEventListener('click', () => {
+    const from = $('wordFrom').value.trim();
+    const to   = $('wordTo').value;
+    if (!from) return;
+    const flags = $('wordCaseSensitive').checked ? 'g' : 'gi';
+    const re = new RE(from, flags);
+
+    // DOM 반영 + state.utterances 동기화
+    $$('.utterance-text').forEach((el, i) => {
+        const newText = el.innerText.replace(re, to);
+        el.innerText = newText;
+        const idx = +el.closest('.utterance-item')?.dataset.utteranceIdx;
+        if (!isNaN(idx) && state.utterances[idx]) state.utterances[idx].text = newText;
+    });
+
+    $('wordReplacePreview').innerHTML = '<span class="wr-success">✅ 수정이 완료되었습니다.</span>';
+    $('wordConfirmBtn').disabled = true;
+    setTimeout(closeWordReplaceModal, 900);
+});
+
+// safe RegExp helper
+function RE(pattern, flags) {
+    try { return new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags); }
+    catch { return new RegExp('(?!)', flags); }
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ── 재생성 / 다운로드 ────────────────────────────
 $('regenBtn').addEventListener('click', async()=>{
