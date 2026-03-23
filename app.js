@@ -814,7 +814,7 @@ $('submitBtn').addEventListener('click', async () => {
                     $('progressSection').classList.remove('visible');
                     $('resultsSection').classList.add('visible');
                     $('audioPlayerResult').classList.add('visible');
-                    setStep(3); switchTab('transcript'); setupPlayer(); updateFab();
+                    setStep(3); switchTab('transcript'); setupPlayer(); updateFab(); showNewAnalysisBar();
                     return;
                 } else if (evM[1] === 'error') {
                     throw new Error(data.detail || '서버 오류');
@@ -827,7 +827,9 @@ $('submitBtn').addEventListener('click', async () => {
 function _submitErr(msg) {
     Object.keys(_stepTimers).forEach(k => _stopElapsed(+k));
     $('progressSection').classList.remove('visible');
-    $('submitBtn').style.display = 'block'; $('previewBtn').style.display = '';
+    // 패널이 열려 있으면 원위치 복귀
+    if (newAnalysisBar.classList.contains('open')) { newAnalysisBar.before(uploadSection); newAnalysisBar.classList.remove('open'); newAnalysisPanel.style.maxHeight = '0'; }
+    if (newAnalysisBar.classList.contains('visible')) { uploadSection.style.display = ''; } else { uploadSection.style.display = ''; }
     setStep(1); showErr(msg);
 }
 
@@ -884,6 +886,7 @@ $('previewBtn').addEventListener('click', () => {
         $('resultsSection').classList.remove('visible');
         $('audioPlayerResult').classList.remove('visible');
         $('fabGroup').classList.remove('visible');
+        hideNewAnalysisBar();
         btn.textContent = '👀 결과 예시 보기'; state.result = null; return;
     }
     btn.textContent = '✕ 예시 닫기';
@@ -896,6 +899,74 @@ $('previewBtn').addEventListener('click', () => {
     $('progressSection').classList.remove('visible');
     $('resultsSection').classList.add('visible');
     $('audioPlayerResult').classList.add('visible');
-    setStep(3); switchTab('transcript'); updateFab();
+    setStep(3); switchTab('transcript'); updateFab(); showNewAnalysisBar();
     $('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// ── 새 회의록 분석 바 ────────────────────────────
+const newAnalysisBar   = $('newAnalysisBar');
+const newAnalysisPanel = $('newAnalysisPanel');
+const uploadSection    = $('uploadSection');
+
+function showNewAnalysisBar() {
+    uploadSection.style.display = 'none';
+    newAnalysisBar.classList.add('visible');
+    // 패널이 열려 있으면 닫기
+    newAnalysisBar.classList.remove('open');
+    newAnalysisPanel.style.maxHeight = '0';
+    $('newAnalysisToggle').querySelector('.na-arrow').textContent = '▾';
+}
+
+function hideNewAnalysisBar() {
+    // 패널 안에 있으면 원래 위치로 복귀
+    if (newAnalysisPanel.contains(uploadSection)) {
+        newAnalysisBar.before(uploadSection);
+    }
+    uploadSection.style.display = '';
+    newAnalysisBar.classList.remove('visible', 'open');
+    newAnalysisPanel.style.maxHeight = '0';
+}
+
+$('newAnalysisToggle').addEventListener('click', () => {
+    const opening = !newAnalysisBar.classList.contains('open');
+    newAnalysisBar.classList.toggle('open', opening);
+    $('newAnalysisToggle').querySelector('.na-arrow').textContent = opening ? '▴' : '▾';
+
+    if (opening) {
+        // 업로드 섹션을 패널 안으로 이동 후 높이 계산
+        newAnalysisPanel.appendChild(uploadSection);
+        uploadSection.style.display = '';
+        // 분석 버튼 복원 (분석 완료 후 숨겨진 상태일 수 있음)
+        $('submitBtn').style.display = '';
+        $('previewBtn').style.display = 'none';
+        // 파일·에러 초기화
+        state.file = null; $('fileInput').value = '';
+        $('filePreview').classList.remove('visible');
+        $('submitBtn').disabled = true;
+        hideErr();
+        // DOM 반영 후 높이 계산
+        requestAnimationFrame(() => {
+            newAnalysisPanel.style.maxHeight = newAnalysisPanel.scrollHeight + 'px';
+            // 애니메이션 끝나면 none으로 풀어 내부 드롭다운 등 동작 보장
+            newAnalysisPanel.addEventListener('transitionend', () => {
+                if (newAnalysisBar.classList.contains('open'))
+                    newAnalysisPanel.style.maxHeight = 'none';
+            }, { once: true });
+        });
+        // 화면 스크롤
+        setTimeout(() => newAnalysisBar.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    } else {
+        // max-height를 현재 높이로 고정 후 0으로 줄여 애니메이션
+        newAnalysisPanel.style.maxHeight = newAnalysisPanel.scrollHeight + 'px';
+        requestAnimationFrame(() => {
+            newAnalysisPanel.style.maxHeight = '0';
+        });
+        // 애니메이션 후 원래 위치로 복귀 및 숨김
+        newAnalysisPanel.addEventListener('transitionend', () => {
+            if (!newAnalysisBar.classList.contains('open')) {
+                newAnalysisBar.before(uploadSection);
+                uploadSection.style.display = 'none';
+            }
+        }, { once: true });
+    }
 });

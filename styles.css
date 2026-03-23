@@ -486,3 +486,43 @@ header { padding: 48px 0 40px; display: flex; align-items: center; gap: 16px; }
     .steps          { display: none; }
     .tab-btn        { font-size: 12px; padding: 12px 10px; }
 }
+
+/* ── New Analysis Bar ───────────────────────────── */
+.new-analysis-bar {
+    display: none;
+    margin-bottom: 32px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface);
+}
+.new-analysis-bar.visible { display: block; }
+
+.new-analysis-toggle {
+    width: 100%; padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: none; border: none; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background .2s;
+}
+.new-analysis-toggle:hover { background: var(--surf2); }
+.new-analysis-bar.open .new-analysis-toggle { border-bottom: 1px solid var(--border); }
+
+.na-arrow { color: var(--muted); font-size: 12px; transition: transform .2s; }
+
+.new-analysis-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .35s ease;
+    padding: 0 20px;
+}
+.new-analysis-bar.open .new-analysis-panel {
+    padding: 20px;
+}
+
+/* uploadSection이 패널 안으로 들어왔을 때 내부 여백 정리 */
+.new-analysis-panel #uploadSection {
+    padding: 0;
+}
+.new-analysis-panel .hero { display: none !important; }
+.new-analysis-panel .steps { display: none !important; }

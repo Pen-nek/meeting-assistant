@@ -15,74 +15,85 @@
         <div class="logo-text">meeting<span>.</span>ai</div>
     </header>
 
-    <section class="hero">
-        <h1>회의를 <em>기록</em>하고<br>액션으로 <em>바꾸다</em></h1>
-        <p>녹음 파일을 업로드하면 AI가 화자를 분리하고, 회의록과 TO DO를 자동으로 만들어줍니다.</p>
-    </section>
+    <!-- 업로드 섹션 (분석 완료 후 통째로 숨김) -->
+    <div id="uploadSection">
+        <section class="hero">
+            <h1>회의를 <em>기록</em>하고<br>액션으로 <em>바꾸다</em></h1>
+            <p>녹음 파일을 업로드하면 AI가 화자를 분리하고, 회의록과 TO DO를 자동으로 만들어줍니다.</p>
+        </section>
 
-    <!-- Steps -->
-    <div class="steps">
-        <div class="step active" id="step1"><div class="step-num">1</div> 파일 업로드</div>
-        <div class="step" id="step2"><div class="step-num">2</div> AI 분석</div>
-        <div class="step" id="step3"><div class="step-num">3</div> 결과 확인</div>
-    </div>
-
-    <!-- Upload -->
-    <div class="upload-area" id="uploadArea">
-        <span class="upload-icon">🎵</span>
-        <h3>녹음 파일을 드래그하거나 클릭해서 업로드</h3>
-        <p>AI가 화자를 자동으로 분리하고 회의록을 생성합니다</p>
-        <div class="upload-formats">
-            <span class="format-tag">MP3</span><span class="format-tag">MP4</span>
-            <span class="format-tag">WAV</span><span class="format-tag">M4A</span>
-            <span class="format-tag">FLAC</span><span class="format-tag">OGG</span>
-            <span class="format-tag">WEBM</span>
+        <div class="steps">
+            <div class="step active" id="step1"><div class="step-num">1</div> 파일 업로드</div>
+            <div class="step" id="step2"><div class="step-num">2</div> AI 분석</div>
+            <div class="step" id="step3"><div class="step-num">3</div> 결과 확인</div>
         </div>
-        <input type="file" id="fileInput" accept=".mp3,.mp4,.wav,.m4a,.flac,.ogg,.webm" />
-    </div>
 
-    <div class="file-preview" id="filePreview">
-        <div class="file-icon">🎙</div>
-        <div class="file-info">
-            <div class="file-name" id="fileName">-</div>
-            <div class="file-size" id="fileSize">-</div>
-        </div>
-        <button class="remove-btn" id="removeFile">✕</button>
-    </div>
-
-    <!-- Config -->
-    <div class="config-section">
-        <div class="config-card">
-            <label>발화자 수 (최대)</label>
-            <div class="num-stepper">
-                <button class="stepper-btn" id="stepperDown" type="button">−</button>
-                <span class="stepper-val" id="stepperVal">4</span>
-                <button class="stepper-btn" id="stepperUp" type="button">+</button>
-                <input type="hidden" id="speakerCount" value="4" />
+        <div class="upload-area" id="uploadArea">
+            <span class="upload-icon">🎵</span>
+            <h3>녹음 파일을 드래그하거나 클릭해서 업로드</h3>
+            <p>AI가 화자를 자동으로 분리하고 회의록을 생성합니다</p>
+            <div class="upload-formats">
+                <span class="format-tag">MP3</span><span class="format-tag">MP4</span>
+                <span class="format-tag">WAV</span><span class="format-tag">M4A</span>
+                <span class="format-tag">FLAC</span><span class="format-tag">OGG</span>
+                <span class="format-tag">WEBM</span>
             </div>
+            <input type="file" id="fileInput" accept=".mp3,.mp4,.wav,.m4a,.flac,.ogg,.webm" />
         </div>
-        <div class="config-card">
-            <label>회의 언어</label>
-            <div class="custom-select-wrap">
-                <div class="custom-select" id="langSelect" tabindex="0">
-                    <span class="cs-selected" id="langSelected">🇰🇷 한국어</span>
-                    <span class="cs-arrow">▾</span>
-                    <div class="cs-options" id="langOptions">
-                        <div class="cs-option active" data-value="ko">🇰🇷 한국어</div>
-                        <div class="cs-option" data-value="en">🇺🇸 영어</div>
-                        <div class="cs-option" data-value="ja">🇯🇵 일본어</div>
-                        <div class="cs-option" data-value="zh">🇨🇳 중국어</div>
-                    </div>
+
+        <div class="file-preview" id="filePreview">
+            <div class="file-icon">🎙</div>
+            <div class="file-info">
+                <div class="file-name" id="fileName">-</div>
+                <div class="file-size" id="fileSize">-</div>
+            </div>
+            <button class="remove-btn" id="removeFile">✕</button>
+        </div>
+
+        <div class="config-section" id="configSection">
+            <div class="config-card">
+                <label>발화자 수 (최대)</label>
+                <div class="num-stepper">
+                    <button class="stepper-btn" id="stepperDown" type="button">−</button>
+                    <span class="stepper-val" id="stepperVal">4</span>
+                    <button class="stepper-btn" id="stepperUp" type="button">+</button>
+                    <input type="hidden" id="speakerCount" value="4" />
                 </div>
-                <input type="hidden" id="language" value="ko" />
+            </div>
+            <div class="config-card">
+                <label>회의 언어</label>
+                <div class="custom-select-wrap">
+                    <div class="custom-select" id="langSelect" tabindex="0">
+                        <span class="cs-selected" id="langSelected">🇰🇷 한국어</span>
+                        <span class="cs-arrow">▾</span>
+                        <div class="cs-options" id="langOptions">
+                            <div class="cs-option active" data-value="ko">🇰🇷 한국어</div>
+                            <div class="cs-option" data-value="en">🇺🇸 영어</div>
+                            <div class="cs-option" data-value="ja">🇯🇵 일본어</div>
+                            <div class="cs-option" data-value="zh">🇨🇳 중국어</div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="language" value="ko" />
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="error-box" id="errorBox"></div>
-    <button class="submit-btn" id="submitBtn" disabled>✨ 회의록 생성하기</button>
-    <div style="text-align:center; margin-top:-24px; margin-bottom:40px;">
-        <button class="preview-btn" id="previewBtn">👀 결과 예시 보기</button>
+        <div class="error-box" id="errorBox"></div>
+        <button class="submit-btn" id="submitBtn" disabled>✨ 회의록 생성하기</button>
+        <div style="text-align:center; margin-top:-24px; margin-bottom:40px;">
+            <button class="preview-btn" id="previewBtn">👀 결과 예시 보기</button>
+        </div>
+    </div><!-- /#uploadSection -->
+
+    <!-- 새 회의록 분석 바 (분석 완료 후 표시) -->
+    <div class="new-analysis-bar" id="newAnalysisBar">
+        <button class="new-analysis-toggle" id="newAnalysisToggle">
+            <span>＋ 새 회의록 분석하기</span>
+            <span class="na-arrow">▾</span>
+        </button>
+        <div class="new-analysis-panel" id="newAnalysisPanel">
+            <!-- 업로드 UI가 여기로 이동됨 (JS에서 처리) -->
+        </div>
     </div>
 
     <!-- Progress -->
@@ -101,7 +112,6 @@
     <!-- Results -->
     <div class="results-section" id="resultsSection">
 
-        <!-- 발화자 목록 패널 -->
         <div class="speaker-list-panel" id="speakerListPanel">
             <div class="speaker-list-header">
                 <span>발화자 목록</span>
@@ -110,26 +120,19 @@
             <div class="speaker-list-grid" id="speakerListGrid"></div>
         </div>
 
-        <!-- 커스텀 오디오 플레이어 -->
         <div class="audio-player" id="audioPlayerResult">
-            <!-- 숨겨진 실제 audio 엘리먼트 -->
             <audio id="audioElResult" preload="metadata"></audio>
             <div class="custom-player">
-                <!-- 재생/일시정지 -->
                 <button class="cp-play" id="cpPlay" title="재생/일시정지">
                     <svg class="cp-icon-play" viewBox="0 0 16 16"><polygon points="3,1 14,8 3,15"/></svg>
                     <svg class="cp-icon-pause" viewBox="0 0 16 16" style="display:none"><rect x="2" y="1" width="4" height="14" rx="1.5"/><rect x="10" y="1" width="4" height="14" rx="1.5"/></svg>
                 </button>
-                <!-- 현재 시간 -->
                 <span class="cp-time-cur" id="cpTimeCur">00:00</span>
-                <!-- 프로그레스 바 -->
                 <div class="cp-track" id="cpTrack">
                     <div class="cp-fill"  id="cpFill"></div>
                     <div class="cp-thumb" id="cpThumb"></div>
                 </div>
-                <!-- 전체 시간 -->
                 <span class="cp-time-dur" id="cpTimeDur">--:--</span>
-                <!-- 볼륨 -->
                 <div class="cp-vol-wrap">
                     <button class="cp-vol-btn" id="cpVolBtn" title="음소거">
                         <svg viewBox="0 0 16 16"><path d="M2 5h3l4-3v12l-4-3H2V5z"/><path id="cpVolWave1" d="M11 4.5a5 5 0 0 1 0 7"/><path id="cpVolWave2" d="M12.5 2.5a8 8 0 0 1 0 11"/></svg>
@@ -138,7 +141,6 @@
                         <input class="cp-vol-slider" id="cpVolSlider" type="range" min="0" max="1" step="0.02" value="1" />
                     </div>
                 </div>
-                <!-- 재생 속도 -->
                 <div class="cp-rate-wrap">
                     <button class="cp-rate-btn" id="cpRateBtn" title="재생 속도">1×</button>
                     <div class="cp-rate-menu" id="cpRateMenu">
@@ -153,7 +155,6 @@
             </div>
         </div>
 
-        <!-- Tabs + Content (attached design) -->
         <div class="tabs-wrapper">
             <div class="tabs">
                 <button class="tab-btn active" data-tab="transcript">전체 대화</button>
@@ -161,7 +162,6 @@
                 <button class="tab-btn" data-tab="todos">TO DO</button>
             </div>
 
-            <!-- 전체 대화 탭 -->
             <div class="tab-content active" id="tab-transcript">
                 <div class="tab-inner">
                     <div class="transcript-toolbar">
@@ -176,53 +176,47 @@
                 </div>
             </div>
 
-            <!-- 회의록 탭 -->
             <div class="tab-content" id="tab-minutes">
                 <div class="tab-inner">
                     <div class="tab-toolbar">
                         <h2 class="tab-section-title">회의록</h2>
                         <div class="section-actions">
                             <button class="add-item-btn" id="addMinutesBtn">+ 항목 추가</button>
-                            <button class="dl-btn md"   id="dlMinutesMd">⬇ MD</button>
+                            <button class="dl-btn md" id="dlMinutesMd">⬇ MD</button>
                         </div>
                     </div>
                     <div class="minutes-content" id="minutesContent"></div>
                 </div>
             </div>
 
-            <!-- TO DO 탭 -->
             <div class="tab-content" id="tab-todos">
                 <div class="tab-inner">
                     <div class="tab-toolbar">
                         <h2 class="tab-section-title">TO DO</h2>
                         <div class="section-actions">
                             <button class="add-item-btn" id="addTodoBtn">+ 항목 추가</button>
-                            <button class="dl-btn md"   id="dlTodosMd">⬇ MD</button>
+                            <button class="dl-btn md" id="dlTodosMd">⬇ MD</button>
                         </div>
                     </div>
                     <div id="todoContent"></div>
                 </div>
             </div>
-        </div><!-- /.tabs-wrapper -->
+        </div>
 
     </div><!-- /.results-section -->
 </div><!-- /.container -->
 
-<!-- ═══ FAB: 우하단 ═══ -->
 <div class="fab-group" id="fabGroup">
     <button class="fab-btn fab-save"         id="fabSave"        title="수정 내용으로 재생성">↻</button>
     <button class="fab-btn fab-word-replace" id="fabWordReplace" title="단어 수정">✍️</button>
     <button class="fab-btn fab-top"          id="fabTop"         title="맨 위로">↑</button>
 </div>
 
-<!-- 우클릭 컨텍스트 메뉴 -->
 <div class="ctx-menu" id="ctxMenu">
     <div class="ctx-title">발화자 변경</div>
     <div class="ctx-speakers" id="ctxSpeakers"></div>
-
 </div>
 
-<!-- 발화자 관리 모달 -->
 <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal" id="spkModal">
         <div class="modal-header">
@@ -230,7 +224,6 @@
             <button class="modal-close" id="modalClose">✕</button>
         </div>
         <div class="modal-body">
-
             <section class="modal-section">
                 <h4>발화자 병합</h4>
                 <p class="modal-desc">같은 사람으로 인식된 여러 발화자를 하나로 합칩니다.</p>
@@ -243,9 +236,7 @@
                     </div>
                 </div>
             </section>
-
             <div class="modal-divider"></div>
-
             <section class="modal-section">
                 <h4>발화자 추가</h4>
                 <p class="modal-desc">새 발화자를 추가하고, 대화 내용에서 해당 발화자의 발화를 우클릭으로 지정할 수 있습니다.</p>
@@ -254,12 +245,10 @@
                     <button class="add-spk-btn" id="addSpkBtn">+ 추가</button>
                 </div>
             </section>
-
         </div>
     </div>
 </div>
 
-<!-- 단어 수정 모달 -->
 <div class="modal-backdrop" id="wordReplaceBackdrop">
     <div class="modal" id="wordReplaceModal">
         <div class="modal-header">
@@ -281,8 +270,7 @@
             </div>
             <div class="word-replace-options">
                 <label class="word-replace-option-label">
-                    <input type="checkbox" id="wordCaseSensitive" />
-                    대소문자 구분
+                    <input type="checkbox" id="wordCaseSensitive" /> 대소문자 구분
                 </label>
             </div>
             <div class="word-replace-preview" id="wordReplacePreview"></div>
