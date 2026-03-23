@@ -343,7 +343,7 @@ function updateFab() {
     $('fabWordReplace').classList.toggle('hidden', !isTranscript);
     $('fabTop').title = { transcript: '전체 대화 맨 위로', minutes: '회의록 맨 위로', todos: 'TO DO 맨 위로' }[state.tab] ?? '맨 위로';
 }
-$('fabTop').addEventListener('click',  scrollTabTop);
+$('fabTop').addEventListener('click', scrollTabTop);
 $('fabSave').addEventListener('click', () => $('regenBtn').click());
 $('fabWordReplace').addEventListener('click', openWordReplaceModal);
 
@@ -770,8 +770,12 @@ $('dlTodosMd').addEventListener('click',   () => state.result && dlBlob(new Blob
 // ── 분석 제출 ────────────────────────────────────
 $('submitBtn').addEventListener('click', async () => {
     if (!state.file) return;
+    // 예시가 열려 있으면 닫기
+    if (previewOpen) $('previewBtn').click();
     hideErr(); setStep(2);
-    $('submitBtn').style.display = 'none'; $('previewBtn').style.display = 'none';
+    // 분석 중: 업로드 섹션 숨김, 진행 섹션 표시
+    uploadSection.style.display = 'none';
+    newAnalysisBar.classList.remove('visible');
     $('progressSection').classList.add('visible');
 
     const form = new FormData();
@@ -827,9 +831,8 @@ $('submitBtn').addEventListener('click', async () => {
 function _submitErr(msg) {
     Object.keys(_stepTimers).forEach(k => _stopElapsed(+k));
     $('progressSection').classList.remove('visible');
-    // 패널이 열려 있으면 원위치 복귀
-    if (newAnalysisBar.classList.contains('open')) { newAnalysisBar.before(uploadSection); newAnalysisBar.classList.remove('open'); newAnalysisPanel.style.maxHeight = '0'; }
-    if (newAnalysisBar.classList.contains('visible')) { uploadSection.style.display = ''; } else { uploadSection.style.display = ''; }
+    // 업로드 섹션 복원
+    uploadSection.style.display = '';
     setStep(1); showErr(msg);
 }
 
